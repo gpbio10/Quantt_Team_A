@@ -8,6 +8,9 @@ from System import *
 from QuantConnect import *
 from QuantConnect.Algorithm import *
 
+import pandas as pd
+from io import StringIO
+
 
 class Algorithm(QCAlgorithm):
     def Initialize(self):
@@ -19,6 +22,10 @@ class Algorithm(QCAlgorithm):
         self.portfolio = ["DAL", "AC", "AAL"]
         for stock in self.portfolio:
             self.AddEquity(stock, Resolution.Hour)
+
+        self.Schedule.On(self.DateRules.EveryDay("DAL"), self.TimeRules.AfterMarketOpen("DAL", 210), self.GetSource())
+
+        self.Debug(self.throughput.head())
 
     def OnData(self, data):
         '''OnData event is the primary entry point for your algorithm. Each new data point will be pumped in here.
@@ -39,10 +46,17 @@ class Algorithm(QCAlgorithm):
                     self.Debug("Arima Current: " + str(self.arima.Current.Value) + " Last: " + str(self.last))
                     difference = self.arima.Current.Value - self.last
                     if self.arima.Current.Value > self.last:
-                        # self.Debug("Purchasing " + str(stock))
                         if (abs(difference) > 10):
                             self.SetHoldings(stock, 0.33)
                         else:
                             self.SetHoldings(stock, difference * 0.033)
                     self.Debug(difference)
                 self.last = self.arima.Current.Value
+
+    def GetSource(self):
+        source = self.Download("https://www.dropbox.com/s/nuoi78pkna9956o/throughputTest.csv?dl=1")
+        header_list = ["Date", "Throughput"]
+        df = pd.read_csv(StringIO(source), names=header_list)
+        df['Date'] = df['Date'].astype('datetime64[ns]')
+        self.throughput = df
+
