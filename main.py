@@ -9,7 +9,10 @@ from QuantConnect import *
 from QuantConnect.Algorithm import *
 
 import pandas as pd
+import numpy as np
 from io import StringIO
+
+from statsmodels.tsa.stattools import adfuller
 
 
 class Algorithm(QCAlgorithm):
@@ -23,9 +26,12 @@ class Algorithm(QCAlgorithm):
         for stock in self.portfolio:
             self.AddEquity(stock, Resolution.Hour)
 
-        self.Schedule.On(self.DateRules.EveryDay("DAL"), self.TimeRules.AfterMarketOpen("DAL", 210), self.GetSource())
+        source = self.Download("https://www.dropbox.com/s/nuoi78pkna9956o/throughputTest.csv?dl=1")
+        header_list = ["Date", "Throughput"]
+        df = pd.read_csv(StringIO(source), names=header_list)
+        df['Date'] = df['Date'].astype('datetime64[ns]')
 
-        self.Debug(self.throughput.head())
+        self.Schedule.On(self.DateRules.EveryDay("DAL"), self.TimeRules.AfterMarketOpen("DAL", 210), self.GetSource)
 
     def OnData(self, data):
         '''OnData event is the primary entry point for your algorithm. Each new data point will be pumped in here.
@@ -37,6 +43,9 @@ class Algorithm(QCAlgorithm):
 
     def arimax(self):
         for stock in self.portfolio:
+
+            # closing_prices = self.History(stock, 20, Resolution.Hour).values
+
             self.arima = self.ARIMA(stock, 10, 1, 10, 50)
             self.ar = self.ARIMA(stock, 1, 1, 0, 50)
             self.last = self.ar.Current.Value
@@ -58,5 +67,4 @@ class Algorithm(QCAlgorithm):
         header_list = ["Date", "Throughput"]
         df = pd.read_csv(StringIO(source), names=header_list)
         df['Date'] = df['Date'].astype('datetime64[ns]')
-        self.throughput = df
 
