@@ -1,9 +1,17 @@
 from selenium import webdriver
-import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 
-browser = webdriver.Firefox(executable_path=r'C:/Users/grady/Downloads/geckodriver-v0.29.0-win64/geckodriver')
+import os
+import sys
+
+from selenium.webdriver.firefox.firefox_binary import FirefoxBinary
+
+
+os.environ['MOZ_HEADLESS'] = '1'
+
+binary = FirefoxBinary('C:/Program Files/Mozilla Firefox/firefox.exe', log_file=sys.stdout)
+
+browser = webdriver.Firefox(executable_path=r'C:/Users/grady/Downloads/geckodriver-v0.29.0-win64/geckodriver', firefox_binary=binary)
 
 browser.get("https://www.tsa.gov/coronavirus/passenger-throughput")
 
@@ -26,4 +34,4 @@ def readTable():
 
 
 data = readTable()
-print()
+print(data)
