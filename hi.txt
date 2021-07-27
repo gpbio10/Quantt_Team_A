@@ -1,3 +1,0 @@
-hello
-
-dbxcli put hi.txt /throughput/hi.txt
