@@ -69,6 +69,7 @@ class Algorithm(QCAlgorithm):
         df['Date'] = df['Date'].astype('datetime64[ns]')
 
 #####--------------------------------------------
+isBought = False
 from clr import AddReference
 
 AddReference("System")
@@ -92,8 +93,8 @@ volatility = 0.1
 
 class Algorithm(QCAlgorithm):
     def Initialize(self):
-        self.SetStartDate(2021, 1, 1)
-        self.SetEndDate(2021, 7, 12)
+        self.SetStartDate(2021, 4, 1)
+        self.SetEndDate(2021, 7, 28)
 
         self.EnableAutomaticIndicatorWarmUp = True
 
@@ -101,24 +102,18 @@ class Algorithm(QCAlgorithm):
         for stock in self.portfolio:
             self.AddEquity(stock, Resolution.Hour)
 
-        # self.GetSource()
+        self.AddEquity("BLNK", Resolution.Hour)
+
+        isBought = False
 
         self.Schedule.On(self.DateRules.EveryDay("DAL"), self.TimeRules.AfterMarketOpen("DAL", 210), self.GetSource)
-
-        # self.Schedule.On(self.DateRules.EveryDay("DAL"), self.TimeRules.AfterMarketOpen("DAL", 220), self.Rebalance)
+        # self.Schedule.On(self.DateRules.EveryDay("DAL"), self.TimeRules.BeforeMarketClose("DAL", 5), self.checkIfBought)
 
     def OnData(self, data):
-        '''OnData event is the primary entry point for your algorithm. Each new data point will be pumped in here.
-
-        Arguments:
-            data: Slice object keyed by symbol containing the stock data
-        '''
         self.arimax()
 
     def arimax(self):
         for stock in self.portfolio:
-
-            # closing_prices = self.History(stock, 20, Resolution.Hour).values
 
             self.arima = self.ARIMA(stock, 10, 1, 10, 50)
             self.ar = self.ARIMA(stock, 1, 1, 0, 50)
@@ -126,22 +121,15 @@ class Algorithm(QCAlgorithm):
 
             if self.arima.IsReady:
                 if abs(self.arima.Current.Value - self.ar.Current.Value) > 1:
-                    self.Debug("Arima Current: " + str(self.arima.Current.Value) + " Last: " + str(self.last))
+                    # self.Debug("Arima Current: " + str(self.arima.Current.Value) + " Last: " + str(self.last))
                     difference = self.arima.Current.Value - self.last
 
-                    self.Debug("Buying Power = " + self.Portfolio.GetBuyingPower(stock, self.OrderDirection.Buy));
-
                     if (abs(difference) > 10):
-                        availableHoldings = (1 - (
-                                    self.Portfolio.TotalHoldingsValue / self.Portfolio.TotalPortfolioValue)) / self.NUM_POSITIONS
-
-                        if availableHoldings < 0:
-                            availableHoldings = 0
-
-                        self.Debug("Buying: " + str(stock));
                         self.SetHoldings(stock, difference * -(0.1 * volatility))
+                        self.Debug("Buying: " + str(stock));
 
-                    self.Debug(difference)
+                        isBought = True
+
                 self.last = self.arima.Current.Value
 
     def convert_to_datetime(self, string_date):
@@ -151,32 +139,50 @@ class Algorithm(QCAlgorithm):
         return int(throughputString)
 
     def GetSource(self):
-        source = self.Download("https://www.dropbox.com/s/1wo4t5ydkrzderr/throughput.csv?dl=1")
-        header_list = ["Date", "Throughput"]
-        df = pd.read_csv(StringIO(source), names=header_list)
-        df["Date"] = df["Date"].apply(self.convert_to_datetime)
-        self.Debug("Passed convert to datetime")
-        df["Throughput"] = df["Throughput"].apply(self.toInt)
-        self.Debug("Passed convert to int")
-        df['Log returns'] = np.log(df['Throughput'] / df['Throughput'].shift())
-        self.Debug("Passed log returns")
-        df['Log returns'].std()
-        self.Debug("Passed std")
+        try:
+            source = self.Download("https://www.dropbox.com/s/1wo4t5ydkrzderr/throughput.csv?dl=1")
+            header_list = ["Date", "Throughput"]
+            df = pd.read_csv(StringIO(source), names=header_list)
+            df["Date"] = df["Date"].apply(self.convert_to_datetime)
+            df["Throughput"] = df["Throughput"].apply(self.toInt)
+            df['Log returns'] = np.log(df['Throughput'] / df['Throughput'].shift())
+            df['Log returns'].std()
 
-        currentDate = self.Time
-        currentDate = datetime(currentDate.year, currentDate.month, currentDate.day, 0, 0, 0)
-        self.Debug(currentDate)
-        currentDate = currentDate - timedelta(days=1)
+            currentDate = self.Time
+            currentDate = datetime(currentDate.year, currentDate.month, currentDate.day, 0, 0, 0)
+            currentDate = currentDate - timedelta(days=2)
 
-        self.Debug("Passed subtract date")
-        index = df.index
-        condition = df["Date"] == currentDate
-        startDate = index[condition]
-        indices = startDate.tolist()
+            index = df.index
+            condition = df["Date"] == currentDate
+            startDate = index[condition]
+            indices = startDate.tolist()
 
-        volatility = df['Log returns'][indices[0]]
+            volatility = df['Log returns'][indices[0]]
+
+        except:
+            volatility = 0.1
+            self.Debug(self.Time)
+
+        isBought = False
 
         self.Debug(volatility)
 
+    def checkIfBought(self):
+        self.Debug(isBought)
+        if (isBought is False):
+            # self.max = 0
+            # for self.stock in self.portfolio:
+            #     self.arimaProjection = self.ARIMA(self.stock, 10, 1, 10, 50).Current.Value
+            #     self.current = self.ARIMA(self.stock, 1, 1, 0, 50).Current.Value
 
+            #     self.difference = self.arimaProjection - self.current
 
+            #     if (self.difference > self.max):
+            #         self.max = self.difference
+            #         self.BiggestGainer = self.stock
+
+            # self.SetHoldings(stock, self.difference * -(0.1 * volatility))
+            self.SetHoldings("BLNK", -(0.1 * volatility))
+            self.Debug("Buying: BLNK at end of day.");
+
+            isBought = True
