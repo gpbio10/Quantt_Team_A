@@ -71,7 +71,6 @@ class Algorithm(QCAlgorithm):
                         if (abs(difference) > 7):
 
                             try:
-                                # self.MarketOrder(stock, min( self.Portfolio.MarginRemaining, -(difference * volatility * 2000)/self.last))
                                 self.SetHoldings(stock, difference * -(0.08 * volatility))
                                 self.Debug(
                                     "Buying: " + str(stock) + "  " + str(min(0.33, difference * (0.08 * volatility))))
@@ -79,7 +78,6 @@ class Algorithm(QCAlgorithm):
                             except:
                                 self.Debug("Error buying")
 
-                            # self.Debug(stock + " " + str(((-difference * volatility * 2000)/self.last)))
                             self.Debug(self.Portfolio.MarginRemaining)
 
                             isBought = True
@@ -104,7 +102,6 @@ class Algorithm(QCAlgorithm):
                 try:
                     self.Debug("Buying: " + str("BLNK") + " at end of day.")
                     self.MarketOnCloseOrder("BLNK", 1)
-                    # self.Debug(stock + " " + str(20 * (difference * -(0.5 * volatility))))
                     self.Debug(self.Portfolio.MarginRemaining)
                 except:
                     self.Debug("End of day buy failure")
