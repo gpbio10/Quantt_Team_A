@@ -69,7 +69,6 @@ class Algorithm(QCAlgorithm):
         df['Date'] = df['Date'].astype('datetime64[ns]')
 
 #####--------------------------------------------
-isBought = False
 from clr import AddReference
 
 AddReference("System")
@@ -89,48 +88,50 @@ from statsmodels.tsa.stattools import adfuller
 from datetime import datetime, timedelta
 
 volatility = 0.1
+isBought = False
 
 
 class Algorithm(QCAlgorithm):
     def Initialize(self):
-        self.SetStartDate(2021, 4, 1)
+        isBought = False
+        self.SetStartDate(2021, 1, 1)
         self.SetEndDate(2021, 7, 28)
 
         self.EnableAutomaticIndicatorWarmUp = True
 
-        self.portfolio = ["DAL", "AC", "AAL"]
+        self.portfolio = ["DAL", "AC", "AAL", "BLNK"]
         for stock in self.portfolio:
             self.AddEquity(stock, Resolution.Hour)
 
-        self.AddEquity("BLNK", Resolution.Hour)
+        self.Schedule.On(self.DateRules.EveryDay("DAL"), self.TimeRules.AfterMarketOpen("DAL", 30), self.GetSource)
+        self.Schedule.On(self.DateRules.EveryDay("DAL"), self.TimeRules.AfterMarketOpen("DAL", 2), self.checkIfBought)
 
-        isBought = False
-
-        self.Schedule.On(self.DateRules.EveryDay("DAL"), self.TimeRules.AfterMarketOpen("DAL", 210), self.GetSource)
-        # self.Schedule.On(self.DateRules.EveryDay("DAL"), self.TimeRules.BeforeMarketClose("DAL", 5), self.checkIfBought)
+    # def OnWarmUpFinished(self):
+    #     self.checkIfBought()
 
     def OnData(self, data):
         self.arimax()
 
     def arimax(self):
+        self.Debug("OnData")
         for stock in self.portfolio:
+            if (stock != "BLNK"):
+                self.arima = self.ARIMA(stock, 10, 1, 10, 50)
+                self.ar = self.ARIMA(stock, 1, 1, 0, 50)
+                self.last = self.ar.Current.Value
 
-            self.arima = self.ARIMA(stock, 10, 1, 10, 50)
-            self.ar = self.ARIMA(stock, 1, 1, 0, 50)
-            self.last = self.ar.Current.Value
+                if self.arima.IsReady:
+                    if abs(self.arima.Current.Value - self.ar.Current.Value) > 1:
+                        difference = self.arima.Current.Value - self.last
 
-            if self.arima.IsReady:
-                if abs(self.arima.Current.Value - self.ar.Current.Value) > 1:
-                    # self.Debug("Arima Current: " + str(self.arima.Current.Value) + " Last: " + str(self.last))
-                    difference = self.arima.Current.Value - self.last
+                        if (abs(difference) > 7):
+                            self.SetHoldings(stock, difference * -(0.08 * volatility))
+                            self.Debug("Buying: " + str(stock))
+                            self.Debug(self.Portfolio.MarginRemaining)
 
-                    if (abs(difference) > 10):
-                        self.SetHoldings(stock, difference * -(0.1 * volatility))
-                        self.Debug("Buying: " + str(stock));
+                            isBought = True
 
-                        isBought = True
-
-                self.last = self.arima.Current.Value
+                    self.last = self.arima.Current.Value
 
     def convert_to_datetime(self, string_date):
         return datetime.strptime(string_date, '%m/%d/%Y')
@@ -138,7 +139,30 @@ class Algorithm(QCAlgorithm):
     def toInt(self, throughputString):
         return int(throughputString)
 
+    def checkIfBought(self):
+        stock = "BLNK"
+        self.arima = self.ARIMA(stock, 10, 1, 10, 50)
+        self.ar = self.ARIMA(stock, 1, 1, 0, 50)
+        self.last = self.ar.Current.Value
+
+        if self.arima.IsReady:
+            if abs(self.arima.Current.Value - self.ar.Current.Value) > 1:
+                difference = self.arima.Current.Value - self.last
+                try:
+                    self.Debug("Buying: " + str("BLNK") + " at end of day.")
+                    self.MarketOnOpenOrder("BLNK", min(difference * -(0.01 * volatility), ))
+                    self.Debug(self.Portfolio.MarginRemaining)
+                except:
+                    self.Debug("End of day buy failure")
+        # try:
+        #     # self.SetHoldings(self.BiggestGainer, self.difference)
+        #     self.Debug("Buying: " + str("BLNK") +" at end of day.")
+        #     self.MarketOnOpenOrder("BLNK", 0.1);
+        # except:
+        #     self.Debug("End of day buy failure")
+
     def GetSource(self):
+        self.Debug("New Day")
         try:
             source = self.Download("https://www.dropbox.com/s/1wo4t5ydkrzderr/throughput.csv?dl=1")
             header_list = ["Date", "Throughput"]
@@ -161,28 +185,5 @@ class Algorithm(QCAlgorithm):
 
         except:
             volatility = 0.1
-            self.Debug(self.Time)
-
-        isBought = False
 
         self.Debug(volatility)
-
-    def checkIfBought(self):
-        self.Debug(isBought)
-        if (isBought is False):
-            # self.max = 0
-            # for self.stock in self.portfolio:
-            #     self.arimaProjection = self.ARIMA(self.stock, 10, 1, 10, 50).Current.Value
-            #     self.current = self.ARIMA(self.stock, 1, 1, 0, 50).Current.Value
-
-            #     self.difference = self.arimaProjection - self.current
-
-            #     if (self.difference > self.max):
-            #         self.max = self.difference
-            #         self.BiggestGainer = self.stock
-
-            # self.SetHoldings(stock, self.difference * -(0.1 * volatility))
-            self.SetHoldings("BLNK", -(0.1 * volatility))
-            self.Debug("Buying: BLNK at end of day.");
-
-            isBought = True
